@@ -12,5 +12,5 @@ python OrderBookFull.py
 ### Level 2 Channnnel
 Navigate to project directory and enter
 ```
-python L2BookFull.py
+python L2OrderBook.py
 ```
