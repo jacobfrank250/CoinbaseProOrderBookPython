@@ -227,13 +227,6 @@ class OrderBookFull(WebsocketClient):
         # if node is None or not any(o['id'] == order['order_id'] for o in node):
         #     return
 
-        
-
-
-
-            
-
-                        
 
 
     def getBidsAtThisPrice(self,price):
@@ -266,12 +259,8 @@ if __name__ == '__main__':
     import sys
     import time
     import datetime as dt
-
-    class Colors:
-        BLUE = '\033[94m'
-        GREEN = '\033[92m'
-        RED = '\033[31m'
-        END = '\033[0m'
+    from colors import Colors
+    
 
     
     class OrderBookConsole(OrderBookFull):
