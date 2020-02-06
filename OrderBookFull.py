@@ -36,7 +36,7 @@ class OrderBookFull(WebsocketClient):
 
     def on_sequence_gap(self, gap_start, gap_end):
         self.loadFullOrderBook()
-        print("Error: messages missing ({} - {}). Re-initializing book at sequence {}.".format(gap_start, gap_end, self.sequence))
+        print("Error: messages missing ({} - {}). Re-initializing book".format(gap_start, gap_end))
     
     
     
@@ -253,50 +253,31 @@ class OrderBookFull(WebsocketClient):
     def getTopAsk(self):
         return self.asks.peekitem(0)[0]
 
-        
-
-if __name__ == '__main__':
-    import sys
-    import time
-    import datetime as dt
-    from colors import Colors
+    def getTopBids(self,n):
+        topBids = []
+        numBids = self.bids.keys().__len__()
+        if(n<=numBids):
+            for i in range(numBids-1,numBids-n-1,-1):
+                topBids.append(self.bids.peekitem(i)[0])
+        else:
+            x = n-numBids
+            bidsToShow = n-x
+            for i in range(numBids-1,-1,-1):
+                topBids.append(self.bids.peekitem(i)[0])
+            #remaining rows
+            for i in range(n-numBids):
+                topBids.append(0.00)
+        return topBids
     
+    def getTopAsks(self,n):
+        topAsks = []
+        for i in range(n):
+            try:
+                topAsks.append(self.asks.peekitem(i)[0])
+            except IndexError:
+                topAsks.append(0.00)
+        return topAsks
 
-    
-    class OrderBookConsole(OrderBookFull):
-        ''' Logs real-time changes to the bid-ask spread to the console '''
-
-        def __init__(self, product_id=None):
-            super(OrderBookConsole, self).__init__(product_id=product_id)
-
-            # latest values of bid-ask spread
-            self.topBid = None
-            self.topAsk = None
-        
-        def on_message(self, message):
-            super(OrderBookConsole, self).on_message(message)
-
-            self.topBid = self.getTopBid()
-            self.topAsk = self.getTopAsk()
-            best_ask_txt = Colors.RED+ '{0:.2f}'.format(self.topAsk) + Colors.END
-            best_bid_txt = Colors.GREEN+ '{0:.2f}'.format(self.topBid) + Colors.END
-            print('{} \t {}'.format(best_ask_txt,best_bid_txt))
-
-
-    order_book = OrderBookConsole()
-    order_book.start()
-    
-    try:
-        while True:
-            time.sleep(10)
-    except KeyboardInterrupt:
-        order_book.close()
-    
-
-    if order_book.error:
-        sys.exit(1)
-    else:
-        sys.exit(0)
 
 
 
