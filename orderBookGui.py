@@ -7,64 +7,85 @@ import queue
 from OrderBookFull import OrderBookFull
 from colors import Colors
 
+'''
+The order book gui component and websocket client run on a separate threads. 
+It follows a producer-consumer design pattern:
+-The gui and websocket threads both share a message queue. 
+-The websocket thread PRODUCES the top bid/ask prices and adds it to the shared queue.
+-The gui thread CONSUMES the top bid/ask price by removing continuously removing messages from the queue and displaying them.
+'''
+
 class OrderBookProducer(OrderBookFull):
-        ''' Logs real-time changes to the bid-ask price and sends to receiver thread '''
+        ''' Logs real-time changes to the bid-ask price and sends to gui (consumer) thread '''
 
         def __init__(self, gui_q,levels,product_id=None):
             super(OrderBookProducer, self).__init__(product_id=product_id)
 
-            # queue shared by orderbook thread and gui (receiver) thread that stores orderbook snapshots
+            # Queue shared by order book thread and gui (consumer) thread that stores order book snapshots
             self.gui_q = gui_q
 
-            # amount of prices to display in the orderbook snapshot gui
+            # Amount of prices to display in the order book gui
             self.levels = levels
             
         
         def on_message(self, message):
             super(OrderBookProducer, self).on_message(message)
 
-            # Get the current top self.levels asks and bids from the full orderbook  
+            # Get the current top self.levels asks and bids from the full orderbook 
+            # i.e. if self.levels = 5, we get to top 5 bid and ask prices
             topAsks = self.getTopAsks(self.levels)
             topBids = self.getTopBids(self.levels)
 
-            # construct message to send to receiver thread
+            # Construct message to send to gui (receiver) thread
             msgForQ = {"topAsks": topAsks,"topBids":topBids}
 
             try:
                 # Put orderbook snap shot in queue for receiver thread
                 self.gui_q.put(msgForQ,block=False)
             except queue.Full:
-                # receiver thread has not removed orderbook snap shot message yet from queue; do not place another in.
+                # Gui thread has not removed order book snapshot message yet from queue–do not place in another .
                 pass
 
-class OrderBookReceiver(tkinter.Frame):
+class OrderBookConsumer(tkinter.Frame):
         def __init__(self,parent,in_q,levels):
             tkinter.Frame.__init__(self, parent)
-
+            
+            # queue shared by OrderBookConsumer (gui thread) and OrderBookProducer (websocket thread)
             self.in_q = in_q
+            
+            # Amount of prices to display in the order book gui
             self.levels = levels
+            
+            # gui window object
             self.parent = parent
+            
+            # gui window title
             self.parent.title("Order Book")
            
-
+            # This list will hold the stringvars attached to each bid/asl label 
             self.bidTexts = []
-            self.bidLabels = []
             self.askTexts = []
+
+            # This list will hold all the bid/asl labels. Each label is an item in the list displayed in the gui window
+            self.bidLabels = []
             self.askLabels = []
 
-            
+            # Initialize the gui window ask list 
             self.createList(self.askLabels,self.askTexts,"red",self.levels)
             
+            # Initialize the spread label 
             self.spreadText = tkinter.StringVar()
             self.spreadText.set("0.00")
             self.spreadLabel = tkinter.Label(self.parent,textvariable = self.spreadText,fg = "white",bg="black")
             self.spreadLabel.pack()
+            
+            # Initialize the gui window bid list 
             self.createList(self.bidLabels,self.bidTexts,"green",self.levels)
 
-            # start continues loop to refresh orderbook gui every millisecond
+            # Start continuous loop to refresh orderbook gui every millisecond
             self.parent.after(1,self.refreshBook)
 
-        # Initialized our bid and ask lists
+        # Initialize our bid and ask lists
         def createList(self,labels,texts,textColor,n):
             for i in range(n):
                 texts.append(tkinter.StringVar())
@@ -75,17 +96,17 @@ class OrderBookReceiver(tkinter.Frame):
         # Call this every millisecond to update the order book view 
         def refreshBook(self):
             try:
-                #get data sent from orderbook thread
+                # Get (consume) data sent from orderbook thread
                 data = self.in_q.get(block=False)
-                #update spread label text
+                # Update spread label text
                 self.spreadText.set(self.formatPrice(data["topAsks"][0]-data["topBids"][0]))
-                #update ask and bid list text
+                # Update ask and bid list text
                 self.updateList(data["topAsks"],data["topBids"])
             except queue.Empty:
                 # No messages sent from orderbook thread
                 pass
             finally:
-                #update orderbook view in 1 millisecond
+                # Update order book view again in 1 millisecond
                 self.parent.after(1,self.refreshBook)
         
         # This method updates ask and bid lists
@@ -94,7 +115,7 @@ class OrderBookReceiver(tkinter.Frame):
                 self.bidTexts[i].set(self.formatPrice(bid))
 
             for i,ask in enumerate(asks):
-                # List Asks in reverse order
+                # List asks in reverse order
                 self.askTexts[len(self.askTexts)-1-i].set(self.formatPrice(ask))
          
         
@@ -107,17 +128,30 @@ class OrderBookReceiver(tkinter.Frame):
 class OrderBookGui:
 
     def __init__(self, levels):
+        # Create the gui window
         self.root = tkinter.Tk()
+        # Set background to black
         self.root.configure(bg='black')
+
+        # Create queue shared by OrderBookProducer (websocket thread) OrderBookConsumer (gui thread).
         self.q = queue.Queue(maxsize=1)
+
+        # The amount of the bid/ask prices to display
         self.levels = levels
-        self.receiver = OrderBookReceiver(self.root,self.q,self.levels)
+        
+        # Create OrderbookConsumer 
+        self.receiver = OrderBookConsumer(self.root,self.q,self.levels)
+        # Create OrderbookProducer
         self.producer = OrderBookProducer(self.q,self.levels)
+       
+        # Start webscoket (producer) thread
         self.producer.start()
 
         
-        
+        # Binds close window button to askTerminate
         self.root.protocol("WM_DELETE_WINDOW", self.askTerminate)
+        
+        # Start Gui loop (consumer thread)
         self.root.mainloop()
    
     # Function is called when user closes GUI window

@@ -47,11 +47,11 @@ class OrderBookFull(WebsocketClient):
         # Rest api call for full order book
         response = self._client.get_product_order_book(product_id=self.get_product_id(), level=3)
         
-        # reset our sorted dicts holdong bid and ask orders
+        # Reset our sorted dicts holding bid and ask orders
         self.asks = SortedDict()
         self.bids = SortedDict()
 
-        #load rest api reponse into asks and bids dicts
+        # Load rest API reponse into asks and bids dicts
         for bid in response['bids']:
             self.addToOrderBook({
                 'id':bid[2],
@@ -67,7 +67,7 @@ class OrderBookFull(WebsocketClient):
                 'size': Decimal(ask[1])
             })
         
-        # update the current sequence 
+        # Update the current sequence 
         self.sequence = response['sequence']
 
         # Playback queued messages, discarding sequence numbers before or equal to the snapshot sequence number.
@@ -88,7 +88,7 @@ class OrderBookFull(WebsocketClient):
         
         # A sequence less than zero indicates that we are processing a rest API request for the full orderbook
         if(self.sequence<0):
-            # While we are proccessing rest request add messages to queue to process later
+            # While we are proccessing rest request, add messages to queue to process later
             self.websocketQueue.put(message)
 
         if self.sequence == -2:
@@ -96,10 +96,10 @@ class OrderBookFull(WebsocketClient):
             self.loadFullOrderBook()
             return
         if self.sequence == -1:
-            # A sequence of -1 indicates that we are in the middle of processinng the rest api request for the full order book
+            # A sequence of -1 indicates that we are in the middle of processinng the rest API request for the full order book
             return
         if socketSequence <= self.sequence:
-            # Discard sequence numbers before or equal to the snapshot (rest api request) sequence number
+            # Discard sequence numbers before or equal to the sequence number returned by the rest API request 
             return
         elif socketSequence > self.sequence+1:
             # Dropped a message, resync order book
@@ -133,7 +133,7 @@ class OrderBookFull(WebsocketClient):
             # Get list of bid orders at this price
             bidsAtThisPrice = self.getBidsAtThisPrice(order['price'])
             if bidsAtThisPrice is None:
-                #if there are no bid orders at this price then start a new list of orders at this price
+                # If there are no bid orders at this price, start a new list of orders at this price
                 bidsAtThisPrice = [order]
             else:
                 # If there are bid orders at this price add this order to the list 
@@ -141,13 +141,13 @@ class OrderBookFull(WebsocketClient):
             # Update our sorted dictionary holding all bid orders 
             self.setBidsAtThisPrice(order['price'],bidsAtThisPrice)
         else:
-            # Get list of asks orders at this price
+            # Get list of ask orders at this price
             asksAtThisPrice = self.getAsksAtThisPrice(order['price'])
             if asksAtThisPrice is None:
-                #if there are no ask orders at this price then start a new list of orders at this price
+                # If there are no ask orders at this price, start a new list of orders at this price
                 asksAtThisPrice = [order]
             else:
-                # If there are ask orders at this price add this order to the list 
+                # If there are ask orders at this price, add this order to the list 
                 asksAtThisPrice.append(order)
             # Update our sorted dictionary holding all ask orders 
             self.setAsksAtThisPrice(order['price'], asksAtThisPrice)
@@ -158,22 +158,22 @@ class OrderBookFull(WebsocketClient):
         if(order['side']=='buy'):
             bids = self.getBidsAtThisPrice(price)
             if bids is not None:
-                #get a the list of bids at this prices that do not match the order ID we want to delete
+                # Get the list of bids at this prices that do not match the order ID we want to delete
                 bids = [o for o in bids if o['id'] != order ['order_id']]
                 if len(bids) > 0:
-                    #set bids at this price to the list of bids at this price that are not equal to the order ID we want to remove
+                    # Set bids at this price to the list of bids at this price that are not equal to the order ID we want to remove
                     self.setBidsAtThisPrice(price, bids)
                 else:
-                    #There are no more bids at this price so remove it from the dictionary holding all the bids
+                    # There are no more bids at this price, so remove it from the dictionary holding all the bids
                     self.removeBidsAtThisPrice(price)
         else:
             # Ask order
             asks = self.getAsksAtThisPrice(price)
             if asks is not None:
-                #get a the list of asks at this prices that do not match the order ID we want to delete
+                # Get a the list of asks at this prices that do not match the order ID we want to delete
                 asks = [o for o in asks if o['id'] != order['order_id']]
                 if len(asks) > 0:
-                    #set asks at this price to the list of asks at this price that are not equal to the order ID we want to remove
+                    # Set asks at this price to the list of asks at this price that are not equal to the order ID we want to remove
                     self.setAsksAtThisPrice(price, asks)
                 else:
                     # Thare are no more asks at this price so remove it from the dictionary holding all the asks
@@ -187,21 +187,20 @@ class OrderBookFull(WebsocketClient):
             bids = self.getBidsAtThisPrice(price)
             if not bids:
                 return
-            #assert bids[0]['id'] == order['maker_order_id']
             for bid in bids:
                 if bid['id'] == order['maker_order_id']:
                     if(bid['size'] == size):
-                        #remove this bid from list of bids at this price because match will result in size of zero
+                        # Remove this bid from our list of bids at this price because match will result in size of zero
                         bidsAtThisPrice = [o for o in bids if o['id'] != bid['id']]
                         if len(bidsAtThisPrice) > 0:
-                            #set bids at this price to the list of bids at this price that are not equal to the order ID we want to remove
+                            # Set bids at this price to the list of bids at this price that are not equal to the order ID we want to remove
                             self.setBidsAtThisPrice(price, bidsAtThisPrice)
                         else:
-                            #There are no more bids at this price so remove it from the dictionary holding all the bids
+                            # There are no more bids at this price, so remove it from the dictionary holding all the bids
                             self.removeBidsAtThisPrice(price)
                         break
                     else:
-                        #decrement the bid size by size and set bids at this price
+                        # Decrement the bid size by size and set bids at this price
                         bid['size'] -= size
                         self.setBidsAtThisPrice(price, bids)
                         break
@@ -212,17 +211,17 @@ class OrderBookFull(WebsocketClient):
             for ask in asks:
                 if ask['id'] == order['maker_order_id']:
                     if(ask['size'] == size):
-                        # remove this ask from list of asks at this price because match will result in size of zero
+                        # Remove this ask from list of asks at this price because match will result in size of zero
                         asksAtThisPrice = [o for o in asks if o['id'] != ask['id']]
                         if len(asksAtThisPrice)>0:
-                            #set asks at this price to the list of asks at this price that are not equal to the order ID we want to remove
+                            # Set asks at this price to the list of asks at this price that are not equal to the order ID we want to remove
                             self.setAsksAtThisPrice(price,asksAtThisPrice)
                         else:
-                            #There are no more asks at this price so remove it from the dictionary holding all the asks
+                            # There are no more asks at this price so remove it from the dictionary holding all the asks
                             self.removeAsksAtThisPrice(price)
                         break
                     else:
-                        #decrement the asks size by size and set asks at this price
+                        # Decrement the asks size by size and set asks at this price
                         ask['size'] -= size
                         self.setAsksAtThisPrice(price, asks)
                         break
@@ -233,7 +232,7 @@ class OrderBookFull(WebsocketClient):
         except KeyError:
             return
         try:
-            #price of null indicates market order
+            # Price of null indicates market order
             price = Decimal(order['price'])
         except KeyError:
             return
@@ -261,7 +260,7 @@ class OrderBookFull(WebsocketClient):
             # Update ask order dict
             self.setAsksAtThisPrice(price, asks)
         '''
-        # implementation to reduce redundancy of if side == buy/sell 
+        #implementation to reduce redundancy of if side == buy/sell 
         tree = self._asks if order['side'] == 'sell' else self._bids
         node = tree.get(price)
 
@@ -320,7 +319,7 @@ class OrderBookFull(WebsocketClient):
             # Retrieve all the bid prices in bid order book
             for i in range(numBids-1,-1,-1):
                 topBids.append(self.bids.peekitem(i)[0])
-            # set the remainder of the top n bids asked for to zero 
+            # Set the remainder of the top n bids asked for to zero 
             for i in range(n-numBids):
                 topBids.append(0.00)
         
