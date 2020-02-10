@@ -110,8 +110,16 @@ class OrderBookFull(WebsocketClient):
 
         # Handle each message type
         if msg_type == 'open':
+            '''
+            -There will be no open messages for orders which will be filled immediately. 
+            -There will be no open message for market orders since they are filled immediately
+            '''
             self.addToOrderBook(message)
         elif msg_type == 'done' and 'price' in message:
+            '''
+            Market orders will not have a remaining_size or price field as they are never on the open order book at a given price.
+            Done messaged for such orders can be ignored as they are never in the book
+            '''
             self.removeFromOrderBook(message)
         elif msg_type == 'match':
             self.handleMatch(message)
@@ -232,7 +240,11 @@ class OrderBookFull(WebsocketClient):
         except KeyError:
             return
         try:
-            # Price of null indicates market order
+            '''
+            Any change message where the price is null indicates that the change message is for a market order.
+            Change messages for limit orders will always have a price specified.
+            Change massages for market orders are ignored as they are never in the order book.
+            '''
             price = Decimal(order['price'])
         except KeyError:
             return
@@ -240,7 +252,11 @@ class OrderBookFull(WebsocketClient):
         if order['side'] == 'buy':
             bids = self.getBidsAtThisPrice(price)
             if bids is None or not any(o['id'] == order['order_id'] for o in bids):
-                # If there are no bids at this price or there are no bid orders with matching IDs ignore
+                '''
+                If there are no bids at this price or there are no bid orders with matching IDs ignore
+                We receive a change message when there are no matching IDs for received but not yet open orders
+                These can be ignored as they are never in the order book.
+                '''
                 return
             # Get the index of the matching orderID in our list of bids 
             index = [b['id'] for b in bids].index(order['order_id'])
@@ -339,7 +355,6 @@ class OrderBookFull(WebsocketClient):
                 This means there are fewer ask prices than the number requested (n).
                 In this case we append a price of inifinity 
                 '''
-                # topAsks.append(0.00)
                 topAsks.append(float('inf'))
         return topAsks
 
